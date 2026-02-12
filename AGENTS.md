@@ -1,89 +1,150 @@
-# AGENTS.md -- Codex Operating Manual for PokeVolume
+# AGENTS.md — Codex Operating Manual for PokeVolume
 
-This file defines rules and architecture constraints for AI agents
-working in this repository.
+This file defines strict operating rules for AI agents modifying this repository.
 
-------------------------------------------------------------------------
+Agents MUST follow these constraints.
+
+---
 
 ## 1. Core Architecture
 
-### Stack
+Stack:
 
-Frontend: - Next.js (App Router) - TypeScript - TailwindCSS - Recharts
-(for data visualization)
+Frontend:
+- Next.js (App Router)
+- TypeScript
+- TailwindCSS
+- Recharts
 
-Backend: - Next.js API routes - Node.js
+Backend:
+- Next.js API routes
+- Node.js
 
-Database: - PostgreSQL - Prisma ORM
+Database:
+- PostgreSQL
+- Prisma ORM
 
-Jobs: - Node cron or background worker - No scraping without official
-API access
+Jobs:
+- Background ingestion tasks under /jobs
+- No scraping without official API access
 
-Deployment: - Vercel (frontend) - Railway or Supabase (database)
+Deployment:
+- Vercel (frontend)
+- Railway or Supabase (database)
 
-------------------------------------------------------------------------
+---
 
-## 2. Code Standards
+## 2. Non-Negotiable Build Rule
 
--   TypeScript only
--   No `any` types unless justified
--   Functional components only
--   Clear separation:
-    -   `/lib` for data logic
-    -   `/db` for Prisma schema
-    -   `/jobs` for ingestion tasks
-    -   `/components` for UI
--   All environment variables stored in `.env.local`
--   Never commit secrets
+CI MUST PASS.
 
-------------------------------------------------------------------------
+If CI fails:
+- Make the smallest possible change to restore green build.
+- Do NOT remove tests to pass CI.
+- Do NOT disable lint or type checking.
+- Do NOT bypass Prisma constraints.
+- Prefer code alignment to schema over schema deletion.
 
-## 3. Data Ingestion Rules
+All fixes must be minimal diffs.
 
--   Use official APIs only
--   Store raw payload before normalization
--   Implement deduplication
--   Track timestamp of ingestion
--   Implement idempotent upserts
+---
 
-------------------------------------------------------------------------
+## 3. Code Standards
 
-## 4. Database Conventions
+- TypeScript only (except Next config which must be .js or .mjs)
+- No `any` types unless unavoidable and documented
+- Functional components only
+- No unused exports
+- No dead code
 
-Tables:
+Directory separation:
 
--   sources
--   raw_listings
--   normalized_sales
--   cards
--   sets
--   pokemon
--   series
+/lib → pure business logic  
+/prisma → schema + migrations  
+/jobs → ingestion tasks  
+/components → UI  
+/app/api → API routes  
 
-Indexes required: - sale_date - set_id - pokemon_id - price
+Environment variables:
+- Stored in .env.local (local)
+- Stored in GitHub Secrets (CI)
+- Never committed
 
-------------------------------------------------------------------------
+---
 
-## 5. Analytics Rules
+## 4. Prisma Rules
 
-All trend calculations must:
+- Do NOT assume fields are unique unless marked `@unique` in schema
+- Do NOT use upsert with non-unique fields
+- If model requires relation (e.g. series on set), connect or create required relation
+- Align code to schema; do not silently remove required fields
 
--   Be computed via SQL or materialized views
--   Not computed on the frontend
--   Be cached when possible
+When in doubt:
+- Inspect prisma/schema.prisma before modifying queries
 
-------------------------------------------------------------------------
+---
 
-## 6. Testing Requirements
+## 5. Data Ingestion Rules
 
--   Basic unit tests for normalization logic
--   API endpoint test coverage
--   No broken builds allowed
+- Use official APIs only
+- Store raw payload before normalization
+- Normalization must be deterministic
+- Idempotent ingestion required
+- No duplicate sale rows
+- Missing dimensions must default to "Unknown"
 
-------------------------------------------------------------------------
+---
 
-## 7. Prohibited Actions
+## 6. Analytics Rules
 
--   No web scraping violating ToS
--   No storing API keys in repo
--   No UI-only mock logic pretending to be real analytics
+- No analytics in frontend
+- All aggregations computed server-side
+- Prefer SQL or Prisma aggregations
+- Future materialized views allowed
+
+---
+
+## 7. CI + Auto-Fix Protocol
+
+When CI fails:
+
+1. Analyze the failing step.
+2. Reproduce failure locally (in CI environment if applicable).
+3. Apply minimal fix.
+4. Commit only relevant changes.
+5. Open PR titled:
+   "Auto-fix CI failure"
+
+Agents must:
+- Avoid rewriting unrelated files.
+- Avoid reformatting entire codebase.
+- Avoid adding new dependencies unless necessary.
+- Avoid schema migrations unless explicitly required.
+
+---
+
+## 8. Prohibited Actions
+
+- No web scraping violating ToS
+- No storing API keys in repo
+- No disabling CI checks
+- No removing required Prisma relations
+- No deleting failing tests instead of fixing logic
+- No large refactors during CI repair
+
+---
+
+## 9. Development Philosophy
+
+- Small diffs > large rewrites
+- Stability > feature velocity
+- Schema integrity > shortcut fixes
+- Green CI is mandatory before new features
+
+---
+
+This repository prioritizes:
+Data correctness
+Schema integrity
+Deterministic ingestion
+Reproducible builds
