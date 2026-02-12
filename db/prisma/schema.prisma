@@ -1,0 +1,90 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Source {
+  id          Int          @id @default(autoincrement())
+  name        String       @unique
+  createdAt   DateTime     @default(now())
+  rawListings RawListing[]
+
+  @@map("sources")
+}
+
+model RawListing {
+  id           Int       @id @default(autoincrement())
+  sourceId     Int
+  externalId   String
+  payload      Json
+  ingestedAt   DateTime  @default(now())
+  normalizedId Int?
+  source       Source    @relation(fields: [sourceId], references: [id])
+  normalized   NormalizedSale? @relation(fields: [normalizedId], references: [id])
+
+  @@unique([sourceId, externalId])
+  @@map("raw_listings")
+}
+
+model NormalizedSale {
+  id          Int       @id @default(autoincrement())
+  cardId      Int?
+  setId       Int?
+  pokemonId   Int?
+  title       String
+  saleDate    DateTime
+  price       Decimal   @db.Decimal(10, 2)
+  currency    String
+  createdAt   DateTime  @default(now())
+  card        Card?     @relation(fields: [cardId], references: [id])
+  set         Set?      @relation(fields: [setId], references: [id])
+  pokemon     Pokemon?  @relation(fields: [pokemonId], references: [id])
+
+  @@index([saleDate])
+  @@index([setId])
+  @@index([pokemonId])
+  @@index([price])
+  @@map("normalized_sales")
+}
+
+model Card {
+  id          Int              @id @default(autoincrement())
+  name        String
+  cardNumber  String?
+  setId       Int?
+  sales       NormalizedSale[]
+  set         Set?             @relation(fields: [setId], references: [id])
+
+  @@map("cards")
+}
+
+model Set {
+  id          Int              @id @default(autoincrement())
+  name        String           @unique
+  seriesId    Int?
+  cards       Card[]
+  sales       NormalizedSale[]
+  series      Series?          @relation(fields: [seriesId], references: [id])
+
+  @@map("sets")
+}
+
+model Pokemon {
+  id          Int              @id @default(autoincrement())
+  name        String           @unique
+  sales       NormalizedSale[]
+
+  @@map("pokemon")
+}
+
+model Series {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  sets        Set[]
+
+  @@map("series")
+}
