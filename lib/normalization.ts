@@ -1,11 +1,4 @@
-export type EbayListingPayload = {
-  id: string;
-  title: string;
-  soldPrice: { value: string; currency: string };
-  soldDate: string;
-  setName?: string;
-  pokemonName?: string;
-};
+import type { EbayItemSummary } from "./ebay";
 
 export type NormalizedSale = {
   externalId: string;
@@ -13,27 +6,35 @@ export type NormalizedSale = {
   price: number;
   currency: string;
   saleDate: Date;
+  condition: string | null;
+  quantity: number;
   setName: string | null;
   pokemonName: string | null;
   ingestedAt: Date;
-  rawPayload: EbayListingPayload;
+  rawPayload: EbayItemSummary;
 };
 
-export const normalizeEbayListing = (payload: EbayListingPayload): NormalizedSale => {
-  const parsedPrice = Number(payload.soldPrice.value);
+export const normalizeEbayListing = (payload: EbayItemSummary): NormalizedSale | null => {
+  if (!payload.price?.value || !payload.price.currency || !payload.soldDate) {
+    return null;
+  }
+
+  const parsedPrice = Number(payload.price.value);
 
   if (!Number.isFinite(parsedPrice)) {
-    throw new Error('Invalid sold price in payload');
+    return null;
   }
 
   return {
-    externalId: payload.id,
+    externalId: payload.itemId,
     title: payload.title.trim(),
     price: parsedPrice,
-    currency: payload.soldPrice.currency,
+    currency: payload.price.currency,
     saleDate: new Date(payload.soldDate),
-    setName: payload.setName?.trim() ?? null,
-    pokemonName: payload.pokemonName?.trim() ?? null,
+    condition: payload.condition?.trim() ?? null,
+    quantity: 1,
+    setName: null,
+    pokemonName: null,
     ingestedAt: new Date(),
     rawPayload: payload
   };

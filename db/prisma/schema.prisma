@@ -22,7 +22,7 @@ model RawListing {
   externalId   String
   payload      Json
   ingestedAt   DateTime  @default(now())
-  normalizedId Int?
+  normalizedId Int?      @unique
   source       Source    @relation(fields: [sourceId], references: [id])
   normalized   NormalizedSale? @relation(fields: [normalizedId], references: [id])
 
@@ -40,6 +40,7 @@ model NormalizedSale {
   price       Decimal   @db.Decimal(10, 2)
   currency    String
   createdAt   DateTime  @default(now())
+  rawListing  RawListing?
   card        Card?     @relation(fields: [cardId], references: [id])
   set         Set?      @relation(fields: [setId], references: [id])
   pokemon     Pokemon?  @relation(fields: [pokemonId], references: [id])

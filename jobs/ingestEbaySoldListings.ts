@@ -142,9 +142,15 @@ export const ingestEbaySoldListings = async ({
       },
       update: {
         title: listing.title,
+<<<<<<< codex/autofix-21962441773
+        saleDate: listing.soldDate ? new Date(listing.soldDate) : undefined,
+        priceRaw: listing.price?.value,
+        currency: listing.price?.currency,
+=======
         saleDate: listing.soldDate ? new Date(listing.soldDate) : null,
         priceRaw: listing.price?.value ?? null,
         currency: listing.price?.currency ?? null,
+>>>>>>> main
         payload: listing as unknown as import("@prisma/client").Prisma.InputJsonValue,
         ingestedAt: new Date(),
       },
@@ -152,9 +158,15 @@ export const ingestEbaySoldListings = async ({
         sourceId: source.id,
         externalListingId: listing.itemId,
         title: listing.title,
+<<<<<<< codex/autofix-21962441773
+        saleDate: listing.soldDate ? new Date(listing.soldDate) : undefined,
+        priceRaw: listing.price?.value,
+        currency: listing.price?.currency,
+=======
         saleDate: listing.soldDate ? new Date(listing.soldDate) : null,
         priceRaw: listing.price?.value ?? null,
         currency: listing.price?.currency ?? null,
+>>>>>>> main
         payload: listing as unknown as import("@prisma/client").Prisma.InputJsonValue,
       },
     });
