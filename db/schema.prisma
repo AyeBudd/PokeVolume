@@ -1,0 +1,140 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Source {
+  id               String       @id @default(cuid())
+  name             String
+  platform         String
+  externalSourceId String?
+  baseUrl          String?
+  isActive         Boolean      @default(true)
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  rawListings      RawListing[]
+
+  @@unique([platform, name])
+  @@index([isActive])
+  @@map("sources")
+}
+
+model RawListing {
+  id                String           @id @default(cuid())
+  sourceId          String
+  externalListingId String
+  title             String
+  saleDate          DateTime?
+  priceRaw          String?
+  currency          String?
+  payload           Json
+  ingestedAt        DateTime         @default(now())
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  source            Source           @relation(fields: [sourceId], references: [id], onDelete: Restrict)
+  normalizedSales   NormalizedSale[]
+
+  @@unique([sourceId, externalListingId])
+  @@index([saleDate])
+  @@index([ingestedAt])
+  @@map("raw_listings")
+}
+
+model NormalizedSale {
+  id                String      @id @default(cuid())
+  rawListingId      String      @unique
+  cardId            String
+  quantity          Int         @default(1)
+  saleDate          DateTime
+  price             Decimal     @db.Decimal(12, 2)
+  shippingPrice     Decimal?    @db.Decimal(12, 2)
+  totalPrice        Decimal?    @db.Decimal(12, 2)
+  currency          String      @default("USD")
+  condition         String?
+  isAuction         Boolean     @default(false)
+  ingestBatchKey    String?
+  normalizedAt      DateTime    @default(now())
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  rawListing        RawListing  @relation(fields: [rawListingId], references: [id], onDelete: Restrict)
+  card              Card        @relation(fields: [cardId], references: [id], onDelete: Restrict)
+
+  @@index([saleDate])
+  @@index([price])
+  @@index([cardId])
+  @@index([ingestBatchKey])
+  @@map("normalized_sales")
+}
+
+model Card {
+  id                String           @id @default(cuid())
+  setId             String
+  pokemonId         String
+  externalCardId    String?
+  cardNumber        String?
+  name              String
+  rarity            String?
+  variant           String?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  set               Set              @relation(fields: [setId], references: [id], onDelete: Restrict)
+  pokemon           Pokemon          @relation(fields: [pokemonId], references: [id], onDelete: Restrict)
+  normalizedSales   NormalizedSale[]
+
+  @@unique([setId, cardNumber, name])
+  @@index([setId])
+  @@index([pokemonId])
+  @@map("cards")
+}
+
+model Set {
+  id                String       @id @default(cuid())
+  seriesId          String
+  code              String?
+  name              String
+  releaseDate       DateTime?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  series            Series       @relation(fields: [seriesId], references: [id], onDelete: Restrict)
+  cards             Card[]
+
+  @@unique([seriesId, name])
+  @@index([releaseDate])
+  @@map("sets")
+}
+
+model Pokemon {
+  id                String       @id @default(cuid())
+  dexNumber         Int?
+  name              String
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  cards             Card[]
+
+  @@unique([name])
+  @@unique([dexNumber])
+  @@map("pokemon")
+}
+
+model Series {
+  id                String       @id @default(cuid())
+  name              String       @unique
+  eraOrder          Int?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  sets              Set[]
+
+  @@index([eraOrder])
+  @@map("series")
+}
