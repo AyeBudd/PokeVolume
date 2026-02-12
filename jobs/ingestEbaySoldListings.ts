@@ -1,6 +1,6 @@
 import { prisma } from "../lib/prisma.js";
 import { fetchSoldListings, getEbayAccessToken } from "../lib/ebay.js";
-import { normalizeEbayItem } from "../lib/normalization.js";
+import { normalizeEbayListing } from "../lib/normalization.js";
 
 interface IngestionOptions {
   query: string;
@@ -105,7 +105,7 @@ export const ingestEbaySoldListings = async ({
       continue;
     }
 
-    await prisma.rawListing.upsert({
+    const rawListing = await prisma.rawListing.upsert({
       where: {
         sourceId_externalListingId: {
           sourceId: source.id,
@@ -114,6 +114,9 @@ export const ingestEbaySoldListings = async ({
       },
       update: {
         title: listing.title,
+        saleDate: listing.soldDate ? new Date(listing.soldDate) : null,
+        priceRaw: listing.price?.value ?? null,
+        currency: listing.price?.currency ?? null,
         payload: listing as unknown as import("@prisma/client").Prisma.InputJsonValue,
         ingestedAt: new Date(),
       },
@@ -121,11 +124,23 @@ export const ingestEbaySoldListings = async ({
         sourceId: source.id,
         externalListingId: listing.itemId,
         title: listing.title,
+        saleDate: listing.soldDate ? new Date(listing.soldDate) : null,
+        priceRaw: listing.price?.value ?? null,
+        currency: listing.price?.currency ?? null,
         payload: listing as unknown as import("@prisma/client").Prisma.InputJsonValue,
       },
     });
 
-    const normalized = normalizeEbayItem(listing);
+    if (!listing.price || !listing.soldDate) {
+      continue;
+    }
+
+    const normalized = normalizeEbayListing({
+      id: listing.itemId,
+      title: listing.title,
+      soldPrice: listing.price,
+      soldDate: listing.soldDate,
+    });
     if (!normalized) {
       continue;
     }
@@ -135,40 +150,29 @@ export const ingestEbaySoldListings = async ({
     const dimensions = await upsertDimensions({
       pokemonName: normalized.pokemonName ?? "Unknown",
       setName: normalized.setName ?? "Unknown",
-      cardName: normalized.cardName ?? normalized.title,
+      cardName: normalized.title,
     });
 
     await prisma.normalizedSale.upsert({
       where: {
-        sourceId_externalListingId: {
-          sourceId: source.id,
-          externalListingId: normalized.externalListingId,
-        },
+        rawListingId: rawListing.id,
       },
       update: {
-        title: normalized.title,
         saleDate: normalized.saleDate,
         price: normalized.price,
         currency: normalized.currency,
-        quantity: normalized.quantity,
-        condition: normalized.condition,
+        quantity: 1,
+        condition: listing.condition ?? null,
         cardId: dimensions.card.id,
-        setId: dimensions.set.id,
-        pokemonId: dimensions.pokemon.id,
-        ingestedAt: new Date(),
       },
       create: {
-        sourceId: source.id,
-        externalListingId: normalized.externalListingId,
-        title: normalized.title,
+        rawListingId: rawListing.id,
         saleDate: normalized.saleDate,
         price: normalized.price,
         currency: normalized.currency,
-        quantity: normalized.quantity,
-        condition: normalized.condition,
+        quantity: 1,
+        condition: listing.condition ?? null,
         cardId: dimensions.card.id,
-        setId: dimensions.set.id,
-        pokemonId: dimensions.pokemon.id,
       },
     });
 
