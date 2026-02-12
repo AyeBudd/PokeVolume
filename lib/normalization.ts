@@ -38,3 +38,6 @@ export const normalizeEbayListing = (payload: EbayListingPayload): NormalizedSal
     rawPayload: payload
   };
 };
+
+// 🔧 Add this line:
+export const normalizeEbayItem = normalizeEbayListing;
