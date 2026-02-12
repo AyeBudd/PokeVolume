@@ -90,6 +90,7 @@ export const ingestEbaySoldListings = async ({
     (await prisma.source.create({
       data: {
         name: "ebay",
+        platform: "ebay",
       },
     }));
 
