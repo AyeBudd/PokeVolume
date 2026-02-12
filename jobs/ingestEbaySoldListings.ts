@@ -8,8 +8,6 @@ interface IngestionOptions {
 }
 
 const getOrCreateUnknownSeries = async () => {
-  // If your Series model requires unique keys beyond name, we'll adjust,
-  // but this is the simplest default.
   const series =
     (await prisma.series.findFirst({
       where: { name: "Unknown" },
@@ -47,24 +45,29 @@ const upsertDimensions = async (normalized: {
       },
     }));
 
-  const card = await prisma.card.upsert({
-    where: {
-      name_cardNumber_setId: {
+  const card =
+    (await prisma.card.findFirst({
+      where: {
         name: normalized.cardName,
-        cardNumber: null,
         setId: set.id,
       },
-    },
-    update: {
-      pokemonId: pokemon.id,
-    },
-    create: {
-      name: normalized.cardName,
-      cardNumber: null,
-      setId: set.id,
-      pokemonId: pokemon.id,
-    },
-  });
+    })) ??
+    (await prisma.card.create({
+      data: {
+        name: normalized.cardName,
+        setId: set.id,
+        pokemonId: pokemon.id,
+        cardNumber: null,
+      },
+    }));
+
+  // Optional: ensure the card points at the current pokemon
+  if (card.pokemonId !== pokemon.id) {
+    await prisma.card.update({
+      where: { id: card.id },
+      data: { pokemonId: pokemon.id },
+    });
+  }
 
   return { pokemon, set, card };
 };
