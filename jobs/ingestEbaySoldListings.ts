@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { fetchSoldListings, getEbayAccessToken } from "../lib/ebay.js";
 import { normalizeEbayItem } from "../lib/normalization.js";
@@ -72,6 +73,33 @@ const upsertDimensions = async (normalized: {
   return { pokemon, set, card };
 };
 
+const toEbayListingPayload = (listing: {
+  itemId?: string;
+  title?: string;
+  price?: { value?: string; currency?: string };
+  soldDate?: string;
+}): import("../lib/normalization.js").EbayListingPayload | null => {
+  if (
+    !listing.itemId ||
+    !listing.title ||
+    !listing.price?.value ||
+    !listing.price.currency ||
+    !listing.soldDate
+  ) {
+    return null;
+  }
+
+  return {
+    id: listing.itemId,
+    title: listing.title,
+    soldPrice: {
+      value: listing.price.value,
+      currency: listing.price.currency,
+    },
+    soldDate: listing.soldDate,
+  };
+};
+
 export const ingestEbaySoldListings = async ({
   query,
   limit,
@@ -105,7 +133,7 @@ export const ingestEbaySoldListings = async ({
       continue;
     }
 
-    await prisma.rawListing.upsert({
+    const rawListing = await prisma.rawListing.upsert({
       where: {
         sourceId_externalListingId: {
           sourceId: source.id,
@@ -114,6 +142,9 @@ export const ingestEbaySoldListings = async ({
       },
       update: {
         title: listing.title,
+        saleDate: listing.soldDate ? new Date(listing.soldDate) : null,
+        priceRaw: listing.price?.value ?? null,
+        currency: listing.price?.currency ?? null,
         payload: listing as unknown as import("@prisma/client").Prisma.InputJsonValue,
         ingestedAt: new Date(),
       },
@@ -121,11 +152,19 @@ export const ingestEbaySoldListings = async ({
         sourceId: source.id,
         externalListingId: listing.itemId,
         title: listing.title,
+        saleDate: listing.soldDate ? new Date(listing.soldDate) : null,
+        priceRaw: listing.price?.value ?? null,
+        currency: listing.price?.currency ?? null,
         payload: listing as unknown as import("@prisma/client").Prisma.InputJsonValue,
       },
     });
 
-    const normalized = normalizeEbayItem(listing);
+    const payload = toEbayListingPayload(listing);
+    if (!payload) {
+      continue;
+    }
+
+    const normalized = normalizeEbayItem(payload);
     if (!normalized) {
       continue;
     }
@@ -135,40 +174,27 @@ export const ingestEbaySoldListings = async ({
     const dimensions = await upsertDimensions({
       pokemonName: normalized.pokemonName ?? "Unknown",
       setName: normalized.setName ?? "Unknown",
-      cardName: normalized.cardName ?? normalized.title,
+      cardName: normalized.title,
     });
 
     await prisma.normalizedSale.upsert({
       where: {
-        sourceId_externalListingId: {
-          sourceId: source.id,
-          externalListingId: normalized.externalListingId,
-        },
+        rawListingId: rawListing.id,
       },
       update: {
-        title: normalized.title,
         saleDate: normalized.saleDate,
-        price: normalized.price,
+        price: new Prisma.Decimal(normalized.price),
         currency: normalized.currency,
-        quantity: normalized.quantity,
-        condition: normalized.condition,
+        condition: listing.condition ?? null,
         cardId: dimensions.card.id,
-        setId: dimensions.set.id,
-        pokemonId: dimensions.pokemon.id,
-        ingestedAt: new Date(),
       },
       create: {
-        sourceId: source.id,
-        externalListingId: normalized.externalListingId,
-        title: normalized.title,
+        rawListingId: rawListing.id,
         saleDate: normalized.saleDate,
-        price: normalized.price,
+        price: new Prisma.Decimal(normalized.price),
         currency: normalized.currency,
-        quantity: normalized.quantity,
-        condition: normalized.condition,
+        condition: listing.condition ?? null,
         cardId: dimensions.card.id,
-        setId: dimensions.set.id,
-        pokemonId: dimensions.pokemon.id,
       },
     });
 
