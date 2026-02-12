@@ -114,14 +114,14 @@ export const ingestEbaySoldListings = async ({
       },
       update: {
         title: listing.title,
-        payload: listing,
+        payload: listing as unknown as import("@prisma/client").Prisma.InputJsonValue,
         ingestedAt: new Date(),
       },
       create: {
         sourceId: source.id,
         externalListingId: listing.itemId,
         title: listing.title,
-        payload: listing,
+        payload: listing as unknown as import("@prisma/client").Prisma.InputJsonValue,
       },
     });
 
