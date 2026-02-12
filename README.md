@@ -47,6 +47,83 @@ npm run prisma:migrate
 npm run dev
 ```
 
+Open:
+
+http://localhost:3000
+
+### 6. Run eBay Ingestion Job
+
+After configuring `.env.local` and running Prisma migrations:
+
+```bash
+npm run ingest:ebay
+```
+
+Optional runtime controls:
+
+- `EBAY_QUERY` (default: `pokemon card`)
+- `EBAY_LIMIT` (default: `50`)
+
+The ingestion job:
+
+- Calls the official eBay sold listings API
+- Upserts into `raw_listings` with the full payload
+- Normalizes listing data to `normalized_sales`
+- Performs idempotent upserts using `(source_id, external_listing_id)`
+
+------------------------------------------------------------------------
+
+## 📂 Project Structure
+
+/app → Next.js pages\
+/lib → Business logic\
+/db → Prisma schema + database config\
+/jobs → Data ingestion jobs\
+/components → UI components
+
+------------------------------------------------------------------------
+
+## 📈 Core Data Model
+
+Entities include:
+
+-   sources
+-   raw_listings
+-   normalized_sales
+-   cards
+-   sets
+-   pokemon
+-   series
+
+All analytics calculations are performed server-side.
+
+------------------------------------------------------------------------
+
+## 🛡 Data Policy
+
+-   No scraping that violates Terms of Service
+-   Official APIs only
+-   Raw payloads stored before normalization
+-   Idempotent ingestion logic required
+
+------------------------------------------------------------------------
+
+## 🧠 Development Philosophy
+
+-   Build vertical slices
+-   Ship working pipelines before adding features
+-   Normalize data before visualizing
+-   Analytics first, UI second
+-   Data moat \> feature velocity
+
+------------------------------------------------------------------------
+
+## 🗺 Roadmap
+
+Phase 2: - Pack Expected Value modeling - Set-level hit value analysis -
+Volatility heat maps - Market cap estimation - Predictive modeling
+
+------------------------------------------------------------------------
 Open `http://localhost:3000`.
 
 ## Included Dashboard
