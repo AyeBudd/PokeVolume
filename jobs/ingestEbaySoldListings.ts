@@ -1,6 +1,7 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { fetchSoldListings, getEbayAccessToken } from "../lib/ebay.js";
-import { normalizeEbayItem } from "../lib/normalization.js";
+import { normalizeEbayItem, type EbayListingPayload } from "../lib/normalization.js";
 
 interface IngestionOptions {
   query: string;
@@ -105,7 +106,11 @@ export const ingestEbaySoldListings = async ({
       continue;
     }
 
-    await prisma.rawListing.upsert({
+    const saleDate = listing.soldDate ? new Date(listing.soldDate) : undefined;
+    const priceRaw = listing.price?.value;
+    const currency = listing.price?.currency;
+
+    const rawListing = await prisma.rawListing.upsert({
       where: {
         sourceId_externalListingId: {
           sourceId: source.id,
@@ -114,18 +119,47 @@ export const ingestEbaySoldListings = async ({
       },
       update: {
         title: listing.title,
-        payload: listing,
+        payload: listing as unknown as Prisma.InputJsonValue,
         ingestedAt: new Date(),
+        ...(saleDate ? { saleDate } : {}),
+        ...(priceRaw ? { priceRaw } : {}),
+        ...(currency ? { currency } : {}),
       },
       create: {
         sourceId: source.id,
         externalListingId: listing.itemId,
         title: listing.title,
-        payload: listing,
+        payload: listing as unknown as Prisma.InputJsonValue,
+        ...(saleDate ? { saleDate } : {}),
+        ...(priceRaw ? { priceRaw } : {}),
+        ...(currency ? { currency } : {}),
       },
     });
 
-    const normalized = normalizeEbayItem(listing);
+    if (!listing.price?.value || !listing.price?.currency || !listing.soldDate) {
+      continue;
+    }
+
+    const payload: EbayListingPayload = {
+      id: listing.itemId,
+      title: listing.title,
+      soldPrice: {
+        value: listing.price.value,
+        currency: listing.price.currency,
+      },
+      soldDate: listing.soldDate,
+    };
+
+    let normalized: ReturnType<typeof normalizeEbayItem>;
+    try {
+      normalized = normalizeEbayItem(payload);
+    } catch (error) {
+      console.warn("Skipping listing due to normalization error", {
+        itemId: listing.itemId,
+        error,
+      });
+      continue;
+    }
     if (!normalized) {
       continue;
     }
@@ -135,40 +169,27 @@ export const ingestEbaySoldListings = async ({
     const dimensions = await upsertDimensions({
       pokemonName: normalized.pokemonName ?? "Unknown",
       setName: normalized.setName ?? "Unknown",
-      cardName: normalized.cardName ?? normalized.title,
+      cardName: normalized.title,
     });
 
     await prisma.normalizedSale.upsert({
       where: {
-        sourceId_externalListingId: {
-          sourceId: source.id,
-          externalListingId: normalized.externalListingId,
-        },
+        rawListingId: rawListing.id,
       },
       update: {
-        title: normalized.title,
         saleDate: normalized.saleDate,
         price: normalized.price,
         currency: normalized.currency,
-        quantity: normalized.quantity,
-        condition: normalized.condition,
+        condition: listing.condition,
         cardId: dimensions.card.id,
-        setId: dimensions.set.id,
-        pokemonId: dimensions.pokemon.id,
-        ingestedAt: new Date(),
       },
       create: {
-        sourceId: source.id,
-        externalListingId: normalized.externalListingId,
-        title: normalized.title,
+        rawListingId: rawListing.id,
         saleDate: normalized.saleDate,
         price: normalized.price,
         currency: normalized.currency,
-        quantity: normalized.quantity,
-        condition: normalized.condition,
+        condition: listing.condition,
         cardId: dimensions.card.id,
-        setId: dimensions.set.id,
-        pokemonId: dimensions.pokemon.id,
       },
     });
 
