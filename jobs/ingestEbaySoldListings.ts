@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
+import type { EbayItemSummary } from "../lib/ebay.js";
 import { fetchSoldListings, getEbayAccessToken } from "../lib/ebay.js";
 import { normalizeEbayItem } from "../lib/normalization.js";
 
@@ -73,12 +74,7 @@ const upsertDimensions = async (normalized: {
   return { pokemon, set, card };
 };
 
-const toEbayListingPayload = (listing: {
-  itemId?: string;
-  title?: string;
-  price?: { value?: string; currency?: string };
-  soldDate?: string;
-}): import("../lib/normalization.js").EbayListingPayload | null => {
+const toEbayListingPayload = (listing: EbayItemSummary): EbayItemSummary | null => {
   if (
     !listing.itemId ||
     !listing.title ||
@@ -89,15 +85,7 @@ const toEbayListingPayload = (listing: {
     return null;
   }
 
-  return {
-    id: listing.itemId,
-    title: listing.title,
-    soldPrice: {
-      value: listing.price.value,
-      currency: listing.price.currency,
-    },
-    soldDate: listing.soldDate,
-  };
+  return listing;
 };
 
 export const ingestEbaySoldListings = async ({
@@ -142,15 +130,9 @@ export const ingestEbaySoldListings = async ({
       },
       update: {
         title: listing.title,
-<<<<<<< codex/autofix-21962441773
-        saleDate: listing.soldDate ? new Date(listing.soldDate) : undefined,
-        priceRaw: listing.price?.value,
-        currency: listing.price?.currency,
-=======
         saleDate: listing.soldDate ? new Date(listing.soldDate) : null,
         priceRaw: listing.price?.value ?? null,
         currency: listing.price?.currency ?? null,
->>>>>>> main
         payload: listing as unknown as import("@prisma/client").Prisma.InputJsonValue,
         ingestedAt: new Date(),
       },
@@ -158,15 +140,9 @@ export const ingestEbaySoldListings = async ({
         sourceId: source.id,
         externalListingId: listing.itemId,
         title: listing.title,
-<<<<<<< codex/autofix-21962441773
-        saleDate: listing.soldDate ? new Date(listing.soldDate) : undefined,
-        priceRaw: listing.price?.value,
-        currency: listing.price?.currency,
-=======
         saleDate: listing.soldDate ? new Date(listing.soldDate) : null,
         priceRaw: listing.price?.value ?? null,
         currency: listing.price?.currency ?? null,
->>>>>>> main
         payload: listing as unknown as import("@prisma/client").Prisma.InputJsonValue,
       },
     });
