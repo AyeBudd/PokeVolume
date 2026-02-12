@@ -7,6 +7,20 @@ interface IngestionOptions {
   limit: number;
 }
 
+const getOrCreateUnknownSeries = async () => {
+  // If your Series model requires unique keys beyond name, we'll adjust,
+  // but this is the simplest default.
+  const series =
+    (await prisma.series.findFirst({
+      where: { name: "Unknown" },
+    })) ??
+    (await prisma.series.create({
+      data: { name: "Unknown" },
+    }));
+
+  return series;
+};
+
 const upsertDimensions = async (normalized: {
   pokemonName: string;
   setName: string;
@@ -20,12 +34,17 @@ const upsertDimensions = async (normalized: {
       data: { name: normalized.pokemonName },
     }));
 
+  const unknownSeries = await getOrCreateUnknownSeries();
+
   const set =
     (await prisma.set.findFirst({
       where: { name: normalized.setName },
     })) ??
     (await prisma.set.create({
-      data: { name: normalized.setName },
+      data: {
+        name: normalized.setName,
+        series: { connect: { id: unknownSeries.id } },
+      },
     }));
 
   const card = await prisma.card.upsert({
@@ -109,7 +128,12 @@ export const ingestEbaySoldListings = async ({
     }
 
     normalizedCount += 1;
-    const dimensions = await upsertDimensions(normalized);
+
+    const dimensions = await upsertDimensions({
+      pokemonName: normalized.pokemonName ?? "Unknown",
+      setName: normalized.setName ?? "Unknown",
+      cardName: normalized.cardName ?? normalized.title,
+    });
 
     await prisma.normalizedSale.upsert({
       where: {
@@ -171,4 +195,5 @@ run()
   .finally(async () => {
     await prisma.$disconnect();
   });
+
 
