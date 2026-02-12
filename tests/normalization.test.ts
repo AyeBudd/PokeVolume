@@ -4,15 +4,18 @@ import { normalizeEbayListing } from '@/lib/normalization';
 describe('normalizeEbayListing', () => {
   it('normalizes valid payload and keeps raw payload', () => {
     const payload = {
-      id: 'abc123',
+      itemId: 'abc123',
       title: '  Charizard EX  ',
-      soldPrice: { value: '120.50', currency: 'USD' },
-      soldDate: '2026-01-01T00:00:00.000Z',
-      setName: '151',
-      pokemonName: 'Charizard'
+      price: { value: '120.50', currency: 'USD' },
+      soldDate: '2026-01-01T00:00:00.000Z'
     };
 
     const normalized = normalizeEbayListing(payload);
+
+    expect(normalized).not.toBeNull();
+    if (!normalized) {
+      throw new Error('Expected normalized payload to be defined');
+    }
 
     expect(normalized.externalId).toBe('abc123');
     expect(normalized.title).toBe('Charizard EX');
@@ -20,14 +23,23 @@ describe('normalizeEbayListing', () => {
     expect(normalized.rawPayload).toEqual(payload);
   });
 
-  it('throws for invalid sold price', () => {
+  it('returns null for invalid sold price', () => {
     const payload = {
-      id: 'abc124',
+      itemId: 'abc124',
       title: 'Invalid price card',
-      soldPrice: { value: 'abc', currency: 'USD' },
+      price: { value: 'abc', currency: 'USD' },
       soldDate: '2026-01-01T00:00:00.000Z'
     };
 
-    expect(() => normalizeEbayListing(payload)).toThrow('Invalid sold price in payload');
+    expect(normalizeEbayListing(payload)).toBeNull();
+  });
+
+  it('returns null when required fields are missing', () => {
+    const payload = {
+      itemId: 'abc125',
+      title: 'Missing price listing'
+    };
+
+    expect(normalizeEbayListing(payload)).toBeNull();
   });
 });
