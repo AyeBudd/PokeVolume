@@ -90,7 +90,6 @@ export const ingestEbaySoldListings = async ({
     (await prisma.source.create({
       data: {
         name: "ebay",
-        marketplace: "eBay",
       },
     }));
 
@@ -198,5 +197,3 @@ run()
   .finally(async () => {
     await prisma.$disconnect();
   });
-
-
