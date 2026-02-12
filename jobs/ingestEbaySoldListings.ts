@@ -1,0 +1,167 @@
+import { prisma } from "../lib/prisma.js";
+import { fetchSoldListings, getEbayAccessToken } from "../lib/ebay.js";
+import { normalizeEbayItem } from "../lib/normalization.js";
+
+interface IngestionOptions {
+  query: string;
+  limit: number;
+}
+
+const upsertDimensions = async (normalized: {
+  pokemonName: string;
+  setName: string;
+  cardName: string;
+}) => {
+  const pokemon = await prisma.pokemon.upsert({
+    where: { name: normalized.pokemonName },
+    update: {},
+    create: { name: normalized.pokemonName },
+  });
+
+  const set = await prisma.set.upsert({
+    where: { name: normalized.setName },
+    update: {},
+    create: { name: normalized.setName },
+  });
+
+  const card = await prisma.card.upsert({
+    where: {
+      name_cardNumber_setId: {
+        name: normalized.cardName,
+        cardNumber: null,
+        setId: set.id,
+      },
+    },
+    update: {
+      pokemonId: pokemon.id,
+    },
+    create: {
+      name: normalized.cardName,
+      cardNumber: null,
+      setId: set.id,
+      pokemonId: pokemon.id,
+    },
+  });
+
+  return { pokemon, set, card };
+};
+
+export const ingestEbaySoldListings = async ({
+  query,
+  limit,
+}: IngestionOptions): Promise<{ fetched: number; normalized: number; upserted: number }> => {
+  const appId = process.env.EBAY_APP_ID;
+  const certId = process.env.EBAY_CERT_ID;
+
+  if (!appId || !certId) {
+    throw new Error("Missing EBAY_APP_ID or EBAY_CERT_ID environment variable");
+  }
+
+  const source = await prisma.source.upsert({
+    where: { name: "ebay" },
+    update: {},
+    create: {
+      name: "ebay",
+      marketplace: "eBay",
+    },
+  });
+
+  const accessToken = await getEbayAccessToken({ appId, certId });
+  const listings = await fetchSoldListings({ query, limit, accessToken });
+
+  let normalizedCount = 0;
+  let upsertedCount = 0;
+
+  for (const listing of listings) {
+    if (!listing.itemId || !listing.title) {
+      continue;
+    }
+
+    await prisma.rawListing.upsert({
+      where: {
+        sourceId_externalListingId: {
+          sourceId: source.id,
+          externalListingId: listing.itemId,
+        },
+      },
+      update: {
+        title: listing.title,
+        payload: listing,
+        ingestedAt: new Date(),
+      },
+      create: {
+        sourceId: source.id,
+        externalListingId: listing.itemId,
+        title: listing.title,
+        payload: listing,
+      },
+    });
+
+    const normalized = normalizeEbayItem(listing);
+    if (!normalized) {
+      continue;
+    }
+
+    normalizedCount += 1;
+    const dimensions = await upsertDimensions(normalized);
+
+    await prisma.normalizedSale.upsert({
+      where: {
+        sourceId_externalListingId: {
+          sourceId: source.id,
+          externalListingId: normalized.externalListingId,
+        },
+      },
+      update: {
+        title: normalized.title,
+        saleDate: normalized.saleDate,
+        price: normalized.price,
+        currency: normalized.currency,
+        quantity: normalized.quantity,
+        condition: normalized.condition,
+        cardId: dimensions.card.id,
+        setId: dimensions.set.id,
+        pokemonId: dimensions.pokemon.id,
+        ingestedAt: new Date(),
+      },
+      create: {
+        sourceId: source.id,
+        externalListingId: normalized.externalListingId,
+        title: normalized.title,
+        saleDate: normalized.saleDate,
+        price: normalized.price,
+        currency: normalized.currency,
+        quantity: normalized.quantity,
+        condition: normalized.condition,
+        cardId: dimensions.card.id,
+        setId: dimensions.set.id,
+        pokemonId: dimensions.pokemon.id,
+      },
+    });
+
+    upsertedCount += 1;
+  }
+
+  return {
+    fetched: listings.length,
+    normalized: normalizedCount,
+    upserted: upsertedCount,
+  };
+};
+
+const run = async () => {
+  const query = process.env.EBAY_QUERY ?? "pokemon card";
+  const limit = Number(process.env.EBAY_LIMIT ?? "50");
+
+  const result = await ingestEbaySoldListings({ query, limit });
+  console.log("eBay ingestion complete", result);
+};
+
+run()
+  .catch((error: unknown) => {
+    console.error("eBay ingestion failed", error);
+    process.exitCode = 1;
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });

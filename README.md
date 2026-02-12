@@ -92,6 +92,26 @@ Open:
 
 http://localhost:3000
 
+### 6. Run eBay Ingestion Job
+
+After configuring `.env.local` and running Prisma migrations:
+
+```bash
+npm run ingest:ebay
+```
+
+Optional runtime controls:
+
+- `EBAY_QUERY` (default: `pokemon card`)
+- `EBAY_LIMIT` (default: `50`)
+
+The ingestion job:
+
+- Calls the official eBay sold listings API
+- Upserts into `raw_listings` with the full payload
+- Normalizes listing data to `normalized_sales`
+- Performs idempotent upserts using `(source_id, external_listing_id)`
+
 ------------------------------------------------------------------------
 
 ## 📂 Project Structure
