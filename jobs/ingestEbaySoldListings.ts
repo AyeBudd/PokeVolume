@@ -12,17 +12,21 @@ const upsertDimensions = async (normalized: {
   setName: string;
   cardName: string;
 }) => {
-  const pokemon = await prisma.pokemon.upsert({
-    where: { name: normalized.pokemonName },
-    update: {},
-    create: { name: normalized.pokemonName },
-  });
+  const pokemon =
+    (await prisma.pokemon.findFirst({
+      where: { name: normalized.pokemonName },
+    })) ??
+    (await prisma.pokemon.create({
+      data: { name: normalized.pokemonName },
+    }));
 
-  const set = await prisma.set.upsert({
-    where: { name: normalized.setName },
-    update: {},
-    create: { name: normalized.setName },
-  });
+  const set =
+    (await prisma.set.findFirst({
+      where: { name: normalized.setName },
+    })) ??
+    (await prisma.set.create({
+      data: { name: normalized.setName },
+    }));
 
   const card = await prisma.card.upsert({
     where: {
@@ -57,14 +61,16 @@ export const ingestEbaySoldListings = async ({
     throw new Error("Missing EBAY_APP_ID or EBAY_CERT_ID environment variable");
   }
 
-  const source = await prisma.source.upsert({
-    where: { name: "ebay" },
-    update: {},
-    create: {
-      name: "ebay",
-      marketplace: "eBay",
-    },
-  });
+  const source =
+    (await prisma.source.findFirst({
+      where: { name: "ebay" },
+    })) ??
+    (await prisma.source.create({
+      data: {
+        name: "ebay",
+        marketplace: "eBay",
+      },
+    }));
 
   const accessToken = await getEbayAccessToken({ appId, certId });
   const listings = await fetchSoldListings({ query, limit, accessToken });
@@ -165,3 +171,4 @@ run()
   .finally(async () => {
     await prisma.$disconnect();
   });
+
