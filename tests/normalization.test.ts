@@ -1,40 +1,33 @@
-import { describe, expect, it } from "vitest";
-import { inferPokemonFromTitle, inferSetFromTitle, normalizeEbayItem } from "../lib/normalization.js";
+import { describe, expect, it } from 'vitest';
+import { normalizeEbayListing } from '@/lib/normalization';
 
-describe("normalizeEbayItem", () => {
-  it("normalizes valid sold listings", () => {
-    const normalized = normalizeEbayItem({
-      itemId: "v1|12345|0",
-      title: "Charizard holo Base Set 4/102 PSA 8",
-      soldDate: "2025-01-01T00:00:00.000Z",
-      condition: "Used",
-      price: {
-        value: "499.99",
-        currency: "USD",
-      },
-    });
+describe('normalizeEbayListing', () => {
+  it('normalizes valid payload and keeps raw payload', () => {
+    const payload = {
+      id: 'abc123',
+      title: '  Charizard EX  ',
+      soldPrice: { value: '120.50', currency: 'USD' },
+      soldDate: '2026-01-01T00:00:00.000Z',
+      setName: '151',
+      pokemonName: 'Charizard'
+    };
 
-    expect(normalized).not.toBeNull();
-    expect(normalized?.pokemonName).toBe("Charizard");
-    expect(normalized?.setName).toBe("Base Set");
-    expect(normalized?.price).toBe(499.99);
+    const normalized = normalizeEbayListing(payload);
+
+    expect(normalized.externalId).toBe('abc123');
+    expect(normalized.title).toBe('Charizard EX');
+    expect(normalized.price).toBe(120.5);
+    expect(normalized.rawPayload).toEqual(payload);
   });
 
-  it("returns null when required fields are missing", () => {
-    const normalized = normalizeEbayItem({
-      itemId: "",
-      title: "Pikachu",
-      price: {
-        value: "100",
-        currency: "USD",
-      },
-    });
+  it('throws for invalid sold price', () => {
+    const payload = {
+      id: 'abc124',
+      title: 'Invalid price card',
+      soldPrice: { value: 'abc', currency: 'USD' },
+      soldDate: '2026-01-01T00:00:00.000Z'
+    };
 
-    expect(normalized).toBeNull();
-  });
-
-  it("returns unknown values when no hints exist", () => {
-    expect(inferPokemonFromTitle("Japanese promo card")).toBe("Unknown Pokemon");
-    expect(inferSetFromTitle("Japanese promo card")).toBe("Unknown Set");
+    expect(() => normalizeEbayListing(payload)).toThrow('Invalid sold price in payload');
   });
 });

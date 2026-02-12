@@ -1,78 +1,40 @@
-import type { EbayItemSummary } from "./ebay.js";
-
-export interface NormalizedListing {
-  externalListingId: string;
+export type EbayListingPayload = {
+  id: string;
   title: string;
-  saleDate: Date;
+  soldPrice: { value: string; currency: string };
+  soldDate: string;
+  setName?: string;
+  pokemonName?: string;
+};
+
+export type NormalizedSale = {
+  externalId: string;
+  title: string;
   price: number;
   currency: string;
-  quantity: number;
-  condition?: string;
-  pokemonName: string;
-  setName: string;
-  cardName: string;
-}
-
-const POKEMON_NAMES = [
-  "Pikachu",
-  "Charizard",
-  "Mew",
-  "Mewtwo",
-  "Eevee",
-  "Gengar",
-  "Squirtle",
-  "Bulbasaur",
-] as const;
-
-const SET_HINTS = [
-  "Base Set",
-  "Jungle",
-  "Fossil",
-  "Team Rocket",
-  "Evolving Skies",
-  "151",
-  "Paldean Fates",
-  "Crown Zenith",
-] as const;
-
-export const inferPokemonFromTitle = (title: string): string => {
-  const found = POKEMON_NAMES.find((name) =>
-    title.toLowerCase().includes(name.toLowerCase()),
-  );
-
-  return found ?? "Unknown Pokemon";
+  saleDate: Date;
+  setName: string | null;
+  pokemonName: string | null;
+  ingestedAt: Date;
+  rawPayload: EbayListingPayload;
 };
 
-export const inferSetFromTitle = (title: string): string => {
-  const found = SET_HINTS.find((setName) =>
-    title.toLowerCase().includes(setName.toLowerCase()),
-  );
+export const normalizeEbayListing = (payload: EbayListingPayload): NormalizedSale => {
+  const parsedPrice = Number(payload.soldPrice.value);
 
-  return found ?? "Unknown Set";
-};
-
-export const normalizeEbayItem = (item: EbayItemSummary): NormalizedListing | null => {
-  if (!item.itemId || !item.title || !item.price?.value || !item.price.currency) {
-    return null;
+  if (!Number.isFinite(parsedPrice)) {
+    throw new Error('Invalid sold price in payload');
   }
-
-  const parsedPrice = Number(item.price.value);
-  if (!Number.isFinite(parsedPrice) || parsedPrice <= 0) {
-    return null;
-  }
-
-  const saleDate = item.soldDate ? new Date(item.soldDate) : new Date();
 
   return {
-    externalListingId: item.itemId,
-    title: item.title,
-    saleDate,
+    externalId: payload.id,
+    title: payload.title.trim(),
     price: parsedPrice,
-    currency: item.price.currency,
-    quantity: 1,
-    condition: item.condition,
-    pokemonName: inferPokemonFromTitle(item.title),
-    setName: inferSetFromTitle(item.title),
-    cardName: item.title,
+    currency: payload.soldPrice.currency,
+    saleDate: new Date(payload.soldDate),
+    setName: payload.setName?.trim() ?? null,
+    pokemonName: payload.pokemonName?.trim() ?? null,
+    ingestedAt: new Date(),
+    rawPayload: payload
   };
 };
