@@ -7,134 +7,151 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Source {
-  id               String       @id @default(cuid())
-  name             String
-  platform         String
-  externalSourceId String?
-  baseUrl          String?
-  isActive         Boolean      @default(true)
-  createdAt        DateTime     @default(now())
-  updatedAt        DateTime     @updatedAt
-
-  rawListings      RawListing[]
-
-  @@unique([platform, name])
-  @@index([isActive])
-  @@map("sources")
-}
-
-model RawListing {
-  id                String           @id @default(cuid())
-  sourceId          String
-  externalListingId String
-  title             String
-  saleDate          DateTime?
-  priceRaw          String?
-  currency          String?
-  payload           Json
-  ingestedAt        DateTime         @default(now())
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
-
-  source            Source           @relation(fields: [sourceId], references: [id], onDelete: Restrict)
-  normalizedSales   NormalizedSale[]
-
-  @@unique([sourceId, externalListingId])
-  @@index([saleDate])
-  @@index([ingestedAt])
-  @@map("raw_listings")
-}
-
-model NormalizedSale {
-  id                String      @id @default(cuid())
-  rawListingId      String      @unique
-  cardId            String
-  quantity          Int         @default(1)
-  saleDate          DateTime
-  price             Decimal     @db.Decimal(12, 2)
-  shippingPrice     Decimal?    @db.Decimal(12, 2)
-  totalPrice        Decimal?    @db.Decimal(12, 2)
-  currency          String      @default("USD")
-  condition         String?
-  isAuction         Boolean     @default(false)
-  ingestBatchKey    String?
-  normalizedAt      DateTime    @default(now())
-  createdAt         DateTime    @default(now())
-  updatedAt         DateTime    @updatedAt
-
-  rawListing        RawListing  @relation(fields: [rawListingId], references: [id], onDelete: Restrict)
-  card              Card        @relation(fields: [cardId], references: [id], onDelete: Restrict)
-
-  @@index([saleDate])
-  @@index([price])
-  @@index([cardId])
-  @@index([ingestBatchKey])
-  @@map("normalized_sales")
-}
-
-model Card {
-  id                String           @id @default(cuid())
-  setId             String
-  pokemonId         String
-  externalCardId    String?
-  cardNumber        String?
-  name              String
-  rarity            String?
-  variant           String?
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
-
-  set               Set              @relation(fields: [setId], references: [id], onDelete: Restrict)
-  pokemon           Pokemon          @relation(fields: [pokemonId], references: [id], onDelete: Restrict)
-  normalizedSales   NormalizedSale[]
-
-  @@unique([setId, cardNumber, name])
-  @@index([setId])
-  @@index([pokemonId])
-  @@map("cards")
+enum PackSource {
+  EBAY
+  POKEMON_CENTER
 }
 
 model Set {
-  id                String       @id @default(cuid())
-  seriesId          String
-  code              String?
-  name              String
-  releaseDate       DateTime?
-  createdAt         DateTime     @default(now())
-  updatedAt         DateTime     @updatedAt
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  name        String
+  era         String
+  releaseDate DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  series            Series       @relation(fields: [seriesId], references: [id], onDelete: Restrict)
-  cards             Card[]
+  packs       Pack[]
+  cards       Card[]
 
-  @@unique([seriesId, name])
   @@index([releaseDate])
   @@map("sets")
 }
 
-model Pokemon {
-  id                String       @id @default(cuid())
-  dexNumber         Int?
-  name              String
-  createdAt         DateTime     @default(now())
-  updatedAt         DateTime     @updatedAt
+model Pack {
+  id             String   @id @default(cuid())
+  slug           String   @unique
+  name           String
+  summary        String
+  imageUrl       String?
+  releaseDate    DateTime
+  setId          String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  cards             Card[]
+  set            Set      @relation(fields: [setId], references: [id], onDelete: Restrict)
+  cards          PackCard[]
+  prices         PackPrice[]
+  sourceListings SourceListing[]
+  pullRates      PullRate[]
 
-  @@unique([name])
-  @@unique([dexNumber])
-  @@map("pokemon")
+  @@index([releaseDate])
+  @@index([setId])
+  @@map("packs")
 }
 
-model Series {
-  id                String       @id @default(cuid())
-  name              String       @unique
-  eraOrder          Int?
-  createdAt         DateTime     @default(now())
-  updatedAt         DateTime     @updatedAt
+model Card {
+  id             String   @id @default(cuid())
+  slug           String   @unique
+  name           String
+  cardNumber     String
+  rarity         String
+  subset         String?
+  specialTag     String?
+  imageUrl       String?
+  setId          String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  sets              Set[]
+  set            Set      @relation(fields: [setId], references: [id], onDelete: Restrict)
+  prices         CardPrice[]
+  pullRates      PullRate[]
+  packs          PackCard[]
 
-  @@index([eraOrder])
-  @@map("series")
+  @@index([setId])
+  @@map("cards")
+}
+
+model PackCard {
+  id        String   @id @default(cuid())
+  packId    String
+  cardId    String
+  createdAt DateTime @default(now())
+
+  pack      Pack     @relation(fields: [packId], references: [id], onDelete: Restrict)
+  card      Card     @relation(fields: [cardId], references: [id], onDelete: Restrict)
+
+  @@unique([packId, cardId])
+  @@index([packId])
+  @@index([cardId])
+  @@map("pack_cards")
+}
+
+model CardPrice {
+  id         String   @id @default(cuid())
+  cardId     String
+  sourceName String
+  price      Decimal  @db.Decimal(10, 2)
+  currency   String   @default("USD")
+  fetchedAt  DateTime @default(now())
+
+  card       Card     @relation(fields: [cardId], references: [id], onDelete: Restrict)
+
+  @@index([cardId, fetchedAt])
+  @@map("card_prices")
+}
+
+model PackPrice {
+  id        String     @id @default(cuid())
+  packId    String
+  source    PackSource
+  price     Decimal    @db.Decimal(10, 2)
+  currency  String     @default("USD")
+  fetchedAt DateTime   @default(now())
+
+  pack      Pack       @relation(fields: [packId], references: [id], onDelete: Restrict)
+
+  @@index([packId, source, fetchedAt])
+  @@map("pack_prices")
+}
+
+model PullRate {
+  id          String   @id @default(cuid())
+  packId       String
+  cardId       String
+  probability  Decimal @db.Decimal(8, 6)
+  isEstimated  Boolean @default(false)
+  sourceName   String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  pack         Pack    @relation(fields: [packId], references: [id], onDelete: Restrict)
+  card         Card    @relation(fields: [cardId], references: [id], onDelete: Restrict)
+
+  @@unique([packId, cardId])
+  @@index([packId])
+  @@index([cardId])
+  @@map("pull_rates")
+}
+
+model SourceListing {
+  id              String     @id @default(cuid())
+  packId           String
+  source           PackSource
+  externalId       String
+  title            String
+  listingUrl       String
+  price            Decimal    @db.Decimal(10, 2)
+  currency         String     @default("USD")
+  isInStock        Boolean    @default(true)
+  confidenceScore  Decimal    @db.Decimal(4, 2)
+  rawPayload       Json
+  fetchedAt        DateTime   @default(now())
+  createdAt        DateTime   @default(now())
+
+  pack             Pack       @relation(fields: [packId], references: [id], onDelete: Restrict)
+
+  @@unique([source, externalId])
+  @@index([packId, source])
+  @@map("source_listings")
 }
