@@ -1,22 +1,49 @@
 # PokeVolume
 
-PokeVolume is a full-stack Next.js analytics app scaffold for Pokemon card market intelligence.
+PokeVolume is a production-focused Next.js app for Pokémon TCG booster-pack valuation. It compares current pack costs from eBay and Pokémon Center with expected card-market value to rank packs by decision quality.
 
 ## Stack
 
-- Next.js (App Router) + TypeScript + TailwindCSS
-- Recharts dashboard visualizations
-- Next.js API routes for backend endpoints
-- PostgreSQL + Prisma ORM
+- Next.js 14 App Router + TypeScript
+- Tailwind CSS
+- Prisma ORM + PostgreSQL
+- Server-side EV calculation utilities
+- Placeholder source adapters for future live ingestion
+
+## Features
+
+- **Homepage pack grid** with search, sorting, source chips, and value/cost badges
+- **Pack ranking metrics**:
+  - Expected Value (EV)
+  - Value per Pack (`EV / lowest pack price`)
+  - Average Hit Value
+  - Chase Card Value
+  - Pull Value Ratio
+  - Cost Efficiency Score
+  - ROI Signal (`Undervalued`, `Fair`, `Overpriced`)
+- **Pack detail page** with KPI cards, source links, and sortable tracked-card table
+- **Pull-rate fallback logic** by rarity when exact pull rates are missing (marked as estimated)
+- **Seeded demo dataset** covering:
+  - Surging Sparks
+  - 151
+  - Crown Zenith
+  - Paldean Fates
+  - Obsidian Flames
+  - Twilight Masquerade
+  - Temporal Forces
+  - Paradox Rift
+  - Stellar Crown
 
 ## Project Structure
 
-- `app/` - pages and API routes
-- `components/` - UI components
-- `lib/` - data logic and analytics helpers
-- `db/prisma/` - Prisma schema
-- `jobs/` - ingestion jobs
-- `tests/` - unit/API tests
+- `app/` — routes, pages, loading/error states, API endpoints
+- `components/` — reusable UI components
+- `lib/` — Prisma client, EV logic, pack aggregation logic
+- `prisma/` — schema + seed script
+- `services/adapters/` — ingestion adapter stubs for external data providers
+- `types/` — app domain types
+- `utils/` — formatting helpers
+- `jobs/` — ingestion jobs (existing)
 
 ## Local Setup
 
@@ -26,107 +53,48 @@ PokeVolume is a full-stack Next.js analytics app scaffold for Pokemon card marke
 npm install
 ```
 
-2. Copy environment variables:
+2. Create env file:
 
 ```bash
 cp .env.local.example .env.local
 ```
 
-3. Update `.env.local` with your Postgres connection.
+3. Set a PostgreSQL connection string in `DATABASE_URL`.
 
-4. Generate Prisma client and run migrations:
+4. Generate Prisma client, push schema, and seed:
 
 ```bash
 npm run prisma:generate
-npm run prisma:migrate
+npm run prisma:push
+npm run prisma:seed
 ```
 
-5. Run development server:
+5. Start the app:
 
 ```bash
 npm run dev
 ```
 
-Open:
-
-http://localhost:3000
-
-### 6. Run eBay Ingestion Job
-
-After configuring `.env.local` and running Prisma migrations:
-
-```bash
-npm run ingest:ebay
-```
-
-Optional runtime controls:
-
-- `EBAY_QUERY` (default: `pokemon card`)
-- `EBAY_LIMIT` (default: `50`)
-
-The ingestion job:
-
-- Calls the official eBay sold listings API
-- Upserts into `raw_listings` with the full payload
-- Normalizes listing data to `normalized_sales`
-- Performs idempotent upserts using `(source_id, external_listing_id)`
-
-------------------------------------------------------------------------
-
-## 📂 Project Structure
-
-/app → Next.js pages\
-/lib → Business logic\
-/db → Prisma schema + database config\
-/jobs → Data ingestion jobs\
-/components → UI components
-
-------------------------------------------------------------------------
-
-## 📈 Core Data Model
-
-Entities include:
-
--   sources
--   raw_listings
--   normalized_sales
--   cards
--   sets
--   pokemon
--   series
-
-All analytics calculations are performed server-side.
-
-------------------------------------------------------------------------
-
-## 🛡 Data Policy
-
--   No scraping that violates Terms of Service
--   Official APIs only
--   Raw payloads stored before normalization
--   Idempotent ingestion logic required
-
-------------------------------------------------------------------------
-
-## 🧠 Development Philosophy
-
--   Build vertical slices
--   Ship working pipelines before adding features
--   Normalize data before visualizing
--   Analytics first, UI second
--   Data moat \> feature velocity
-
-------------------------------------------------------------------------
-
-## 🗺 Roadmap
-
-Phase 2: - Pack Expected Value modeling - Set-level hit value analysis -
-Volatility heat maps - Market cap estimation - Predictive modeling
-
-------------------------------------------------------------------------
 Open `http://localhost:3000`.
 
-## Included Dashboard
+## APIs
 
-The home page provides a working market dashboard with mock seed data exposed by `GET /api/dashboard`.
-Analytics are computed server-side in `lib/analytics.ts`.
+- `GET /api/packs?sort=valuePerPack|packCost|releaseDate|alphabetical`
+  - Returns server-calculated pack metrics used by the UI.
+
+## Plugging in Real APIs Later
+
+Use these adapter stubs:
+
+- `services/adapters/ebay-pack-pricing.ts`
+- `services/adapters/pokemon-center-pricing.ts`
+- `services/adapters/card-market-pricing.ts`
+- `services/adapters/pull-rates.ts`
+
+Recommended integration flow:
+
+1. Fetch raw provider payloads.
+2. Store source listings + confidence metadata in `SourceListing`.
+3. Store temporal prices in `PackPrice` / `CardPrice`.
+4. Store exact pull rates in `PullRate` (`isEstimated=false`).
+5. Recompute EV using `lib/ev.ts` and `lib/pack-data.ts` without UI rewrites.

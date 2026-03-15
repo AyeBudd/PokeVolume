@@ -2,11 +2,11 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'PokeVolume Dashboard',
-  description: 'Pokemon market analytics dashboard',
+  title: 'PokeVolume',
+  description: 'Analyze Pokemon TCG booster pack expected value and cost efficiency.'
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({ children }: { children: React.ReactNode }): JSX.Element {
   return (
     <html lang="en">
       <body>{children}</body>

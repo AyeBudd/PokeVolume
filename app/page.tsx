@@ -1,25 +1,22 @@
-import { MarketChart } from '@/components/market-chart';
-import { MetricsCards } from '@/components/metrics-cards';
-import { TrendingList } from '@/components/trending-list';
-import { getDashboardMetrics } from '@/lib/analytics';
+export const dynamic = "force-dynamic";
 
-export default function DashboardPage(): JSX.Element {
-  const metrics = getDashboardMetrics();
+import { HomepageView } from '@/components/packs/homepage-view';
+import { getPackMetrics } from '@/lib/pack-data';
+
+export default async function HomePage(): Promise<JSX.Element> {
+  const packs = await getPackMetrics('valuePerPack');
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-6 p-6">
-      <header>
-        <h1 className="text-3xl font-bold">PokeVolume Market Dashboard</h1>
-        <p className="mt-1 text-slate-400">Server-rendered analytics with mock seed data for local development.</p>
+    <main className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-6 p-4 md:p-8">
+      <header className="space-y-2">
+        <p className="text-xs uppercase tracking-[0.18em] text-emerald-300">PokeVolume</p>
+        <h1 className="text-3xl font-bold md:text-4xl">Pokémon booster pack value intelligence</h1>
+        <p className="max-w-3xl text-slate-300">
+          Compare eBay and Pokémon Center pricing against expected card value to decide whether a pack is undervalued, fair,
+          or overpriced.
+        </p>
       </header>
-
-      <MetricsCards metrics={metrics} />
-      <MarketChart data={metrics.dailyVolume} />
-
-      <div className="grid gap-4 md:grid-cols-2">
-        <TrendingList title="Trending Pokémon" entities={metrics.trendingPokemon} />
-        <TrendingList title="Trending Sets" entities={metrics.trendingSets} />
-      </div>
+      <HomepageView initialPacks={packs} />
     </main>
   );
 }
